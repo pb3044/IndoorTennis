@@ -1,217 +1,29 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Oak Bay Tennis Court Availability</title>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-            background-color: #f9f9f9;
-        }
-        h1 {
-            color: #2c5282;
-            text-align: center;
-        }
-        .date-display {
-            text-align: center;
-            margin-bottom: 2rem;
-        }
-        #courts-container {
-            margin-top: 20px;
-        }
-        .court-card {
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            padding: 16px;
-            margin-bottom: 15px;
-        }
-        .court-name {
-            font-weight: 600;
-            color: #2c5282;
-        }
-        .time-slots {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-top: 10px;
-        }
-        .time-slot {
-            background-color: #ebf8ff;
-            color: #2b6cb0;
-            padding: 6px 10px;
-            border-radius: 4px;
-            font-size: 0.85rem;
-        }
-        #loading, #error {
-            text-align: center;
-            padding: 20px;
-        }
-        .refresh-button {
-            display: block;
-            margin: 20px auto;
-            padding: 10px 20px;
-            background-color: #3182ce;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-    </style>
-</head>
-<body>
-    <h1>Oak Bay Tennis Court Availability</h1>
-    <div class="date-display" id="current-date"></div>
-    
-    <div id="loading">Loading court availability...</div>
-    <div id="error" style="display:none">Error loading data. Please try again.</div>
-    <div id="courts-container"></div>
-    
-    <button class="refresh-button" id="refresh-btn">Refresh Availability</button>
+<h2>Today's Indoor Court Availability</h2>
+<div id="court-list"></div>
 
-    <script>
-        $(document).ready(function() {
-            // Display current date
-            const today = new Date();
-            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-            $('#current-date').text(today.toLocaleDateString('en-US', options));
-            
-            // Function to fetch and display court data
-            function fetchCourtData() {
-                $('#loading').show();
-                $('#error').hide();
-                $('#courts-container').empty();
-                
-                // Use jQuery AJAX to fetch the facility list page
-                $.ajax({
-                    url: 'https://oakbayrec.perfectmind.com/22950/Clients/BookMe4FacilityList/List?calendarId=bda8e8a2-9ca8-46d5-8122-d273384445d6&widgetId=93662e86-de2d-4156-96cf-be71d77cbc89&embed=False',
-                    type: 'GET',
-                    success: function(data) {
-                        // Parse the HTML response
-                        const html = $(data);
-                        
-                        // Find all tennis courts
-                        const courts = [];
-                        html.find('.facility-item').each(function() {
-                            const courtName = $(this).find('.facility-name').text().trim();
-                            if (courtName.includes('Tennis Court')) {
-                                const courtUrl = $(this).find('a.choose-button').attr('href');
-                                courts.push({
-                                    name: courtName,
-                                    url: courtUrl
-                                });
-                            }
-                        });
-                        
-                        if (courts.length === 0) {
-                            $('#loading').hide();
-                            $('#courts-container').html('<div class="court-card"><p>No tennis courts found.</p></div>');
-                            return;
-                        }
-                        
-                        // Process each court to get availability
-                        let processedCourts = 0;
-                        courts.forEach(function(court) {
-                            // Fetch the court's detail page
-                            $.ajax({
-                                url: court.url,
-                                type: 'GET',
-                                success: function(courtData) {
-                                    const courtHtml = $(courtData);
-                                    
-                                    // Find today's column in the time slots table
-                                    const today = new Date();
-                                    const todayStr = today.getDate().toString();
-                                    
-                                    let todayColumn = -1;
-                                    courtHtml.find('table.time-slots-table th').each(function(index) {
-                                        if ($(this).text().includes(todayStr)) {
-                                            todayColumn = index;
-                                            return false;
-                                        }
-                                    });
-                                    
-                                    if (todayColumn === -1) {
-                                        todayColumn = 1; // Default to first column if not found
-                                    }
-                                    
-                                    // Extract available time slots
-                                    const availableSlots = [];
-                                    courtHtml.find('table.time-slots-table tr').each(function(index) {
-                                        if (index === 0) return; // Skip header row
-                                        
-                                        const cells = $(this).find('td');
-                                        if (cells.length <= todayColumn) return;
-                                        
-                                        const timeCell = $(cells[0]);
-                                        const todayCell = $(cells[todayColumn]);
-                                        
-                                        if (todayCell.find('div:contains("BOOK")').length > 0) {
-                                            availableSlots.push({
-                                                time: timeCell.text().trim()
-                                            });
-                                        }
-                                    });
-                                    
-                                    // Add court to display if it has available slots
-                                    if (availableSlots.length > 0) {
-                                        let slotsHtml = '';
-                                        availableSlots.forEach(function(slot) {
-                                            slotsHtml += `<div class="time-slot">${slot.time}</div>`;
-                                        });
-                                        
-                                        const courtHtml = `
-                                            <div class="court-card">
-                                                <div class="court-name">${court.name}</div>
-                                                <div class="court-location">Oak Bay Recreation Centre</div>
-                                                <div class="time-slots">${slotsHtml}</div>
-                                            </div>
-                                        `;
-                                        
-                                        $('#courts-container').append(courtHtml);
-                                    }
-                                    
-                                    // Check if all courts have been processed
-                                    processedCourts++;
-                                    if (processedCourts === courts.length) {
-                                        $('#loading').hide();
-                                        if ($('#courts-container').children().length === 0) {
-                                            $('#courts-container').html('<div class="court-card"><p>No available courts found for today.</p></div>');
-                                        }
-                                    }
-                                },
-                                error: function() {
-                                    processedCourts++;
-                                    if (processedCourts === courts.length) {
-                                        $('#loading').hide();
-                                        if ($('#courts-container').children().length === 0) {
-                                            $('#error').show();
-                                        }
-                                    }
-                                }
-                            });
-                        });
-                    },
-                    error: function() {
-                        $('#loading').hide();
-                        $('#error').show();
-                    }
-                });
-            }
-            
-            // Initial data fetch
-            fetchCourtData();
-            
-            // Refresh button click handler
-            $('#refresh-btn').click(function() {
-                fetchCourtData();
-            });
-        });
-    </script>
-</body>
-</html>
+<script>
+fetch("availability.json")
+  .then(response => response.json())
+  .then(data => {
+    const container = document.getElementById("court-list");
+
+    if (data.length === 0) {
+      container.innerHTML = "<p>No availability found.</p>";
+      return;
+    }
+
+    data.forEach(court => {
+      const courtDiv = document.createElement("div");
+      courtDiv.style.marginBottom = "20px";
+      courtDiv.innerHTML = `
+        <strong>${court.court}</strong><br/>
+        <ul>${court.slots.map(slot => `<li>${slot}</li>`).join('')}</ul>
+      `;
+      container.appendChild(courtDiv);
+    });
+  })
+  .catch(error => {
+    document.getElementById("court-list").innerHTML = `<p>Error loading data.</p>`;
+    console.error("Fetch error:", error);
+  });
+</script>
