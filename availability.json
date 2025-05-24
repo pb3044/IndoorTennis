@@ -1,0 +1,10 @@
+[
+  {
+    "court": "Indoor Tennis Court 1",
+    "slots": ["9:00 AM", "10:00 AM", "11:00 AM"]
+  },
+  {
+    "court": "Indoor Tennis Court 2",
+    "slots": ["10:00 AM", "11:00 AM"]
+  }
+]
